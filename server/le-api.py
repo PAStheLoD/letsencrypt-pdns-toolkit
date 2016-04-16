@@ -42,7 +42,7 @@ class Conf:
         exit(1)
 
     def __init__(self, **kwargs):
-        conf_schema = {'pdns_api_url': URL, ,
+        conf_schema = {'pdns_api_url': URL,
                        'pdns_server_id': str,
                        'pdns_api_key': str,
                        'auth': self._Auth_loader}

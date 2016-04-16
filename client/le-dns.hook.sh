@@ -10,6 +10,9 @@ set -o pipefail
 umask 077
 
 
+api_server=$(cat le-renew-config.json | jq -r '.api_server')
+api_key=$(cat le-renew-config.json | jq -r '.api_key')
+api_self_ca=$(cat le-renew-config.json | jq -r '.api_server_cert')
 
 echo "DEBUG: args: $@"
 
@@ -22,10 +25,22 @@ domain="${2}"
 token="${4}"
 timestamp=$(date +%s)
 
+
+if [[ $api_self_ca != "null" ]] ; then
+    if [[ $(openssl s_client -connect $api_server -CAfile $api_self_ca |& grep 'Verify' | grep '0 (ok)' | wc -l) != 1 ]] ; then
+        echo "Cannot verify remote cert"
+        exit 1
+    fi
+    curl="curl --cacert $api_self_ca -k \"https://$api_server/api/_acme-challenge.$domain\""
+else
+    curl="curl \"http://$api_server/api/_acme-challenge.$domain\""
+fi
+
+
 done="no"
 
 if [[ "$1" = "deploy_challenge" ]]; then
-  curl "http://$api_server/api/_acme-challenge.$domain" -d "$token"
+  $curl -d "$token" -H "API-Key: \"$api_key\""
 
   while ! dig +trace @8.8.8.8 -t TXT "_acme-challenge.$domain" | grep -- "$token" > /dev/null
     do
@@ -36,7 +51,7 @@ if [[ "$1" = "deploy_challenge" ]]; then
 fi
 
 if [[ "$1" = "clean_challenge" ]]; then
-    curl -X DELETE "http://$api_server/api/_acme-challenge.$domain" -d "$token"
+    $curl -X DELETE -d "$token" -H "API-Key: \"$api_key\""
     done="yes"
 fi
 

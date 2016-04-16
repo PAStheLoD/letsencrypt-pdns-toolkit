@@ -1,5 +1,6 @@
 {
     "api_server": "10.0.0.1:8888",
+    "api_server_cert": "cert.pem",
     "api_key": "demo^key",
     "domains": [
         {
@@ -12,7 +13,7 @@
             "actions": {
                 "after": [
                     "service dovecot restart",
-                    "service postfix restart
+                    "service postfix restart"
                 ]
             }
         }
