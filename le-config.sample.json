@@ -1,0 +1,22 @@
+{
+    "pdns_api_url": "http://localhost:8081/",
+    "pdns_server_id": "localhost",
+    "pdns_api_key": "changeme",
+    "auth": {
+        "mode": "here",
+        "keys": [
+            {
+                "key": "N88VJ369GaXHw3TZo1c0PjcsL0Kld74E",
+                "domains": "*"
+            },
+            {
+                "key": "3eAvHuKS3F9Y4WFnF9v9xMefWD1sRB7J",
+                "domains": ["mx.example.com", "mx2.example.com"]
+            },
+            {
+                "key": "e5CHV38WjrO4jP1faOg8v0O70JI72qn4",
+                "domains": ["*.example.com"]
+            }
+        ]
+    }
+}
