@@ -1,0 +1,20 @@
+{
+    "api_server": "10.0.0.1:8888",
+    "api_key": "demo^key",
+    "domains": [
+        {
+            "name": "mx.herp.derp",
+            "symlinks": {
+                "cert": "/etc/ssl/certs/mx.herp.derp.pem",
+                "privkey": "/etc/ssl/private/mx.herp.derp.key",
+                "CA": "/etc/ssl/certs/letsencrypt_x3_ca.pem"
+            },
+            "actions": {
+                "after": [
+                    "service dovecot restart",
+                    "service postfix restart
+                ]
+            }
+        }
+    ]
+}

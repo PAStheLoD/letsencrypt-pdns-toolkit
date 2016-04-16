@@ -1,0 +1,29 @@
+#!/bin/bash
+
+
+cd /opt/letsencrypt/
+
+if [[ ! -r le.config.json ]] ; then
+    echo "Missing le.config"
+    exit 1
+fi
+
+
+cat le.config | jq '.'
+
+
+function renew() {
+    ./letsencrypt.sh --cron --domain "$i" --hook ./le-dns.hook.sh --challenge dns-01
+}
+
+for i in $domains ; do
+    if [[ -r certs/$i/cert.pem ]] ; then
+        if ! openssl x509 -in certs/$i/cert.pem -checkend 864000 -noout ; then
+           renew $i
+        fi
+    else
+        renew $i
+    fi
+done
+
+
