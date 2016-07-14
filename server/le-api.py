@@ -66,7 +66,6 @@ class Conf:
                 else:
                     init_queues['complex'].append(_get_deferred(k, v))
 
-        print(kwargs)
         for _ in init_queues['primitive']:
             _()
 
@@ -159,6 +158,7 @@ def load_config():
     cf = uwsgi.opt.get('config-file')
     if not cf:
         print("Cannot find config file: {}".format(cf))
+        exit(1)
 
     conf_data = json.loads(open(cf).read())
     return Conf(**conf_data)
