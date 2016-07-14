@@ -152,8 +152,6 @@ class HereAuth(Auth):
             else:
                 domains = i['domains']
 
-            print("prefixes: {}".format(self.allowed_prefixes))
-            print("{} << {}".format(i['key'], domains))
             self.keys[i['key']] = self.AuthKeyRecord(domains)
 
 
