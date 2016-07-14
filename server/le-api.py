@@ -12,7 +12,6 @@ app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
 
 import uwsgi
 
-
 class URL(str):
     def __new__(cls, s):
         if not s.startswith('http'):
@@ -22,7 +21,9 @@ class URL(str):
         return str.__new__(cls, s)
 
 
+
 class Conf:
+    import logging
     def _Auth_loader(self, data_dict):
         _m = 'here'
         _m_set = False
@@ -45,11 +46,24 @@ class Conf:
         conf_schema = {'pdns_api_url': URL,
                        'pdns_server_id': str,
                        'pdns_api_key': str,
+                       'allowed_prefixes': list,
                        'auth': self._Auth_loader}
+        conf_items = list(conf_schema.keys())
 
         for k,v in conf_schema.items():
             if k in kwargs:
                 setattr(self, k, v(kwargs[k]))
+                del conf_items[k]
+                del kwargs[k]
+
+        for _ in conf_items.keys():
+            setattr(self, _, None)
+            self.logging.error('Setting default None for: {}'.format(_))
+
+        for k, v in kwargs.items():
+            self.logging.error('Unrecognized configuration data: "{}": {}'.format(k, repr(v)))
+        if len(kwargs):
+            exit(1)
 
 from abc import ABC, abstractmethod
 
@@ -64,13 +78,13 @@ class HereAuth(Auth):
         def __init__(self, domains):
             self._admin = False
 
-            if type(domains) == str:
+            if domains == '*':
                 self._admin = True
             else:
                 assert isinstance(domains, list)
                 assert len(domains) > 0
 
-                self._regexed_domains = tuple(filter(lambda t: '*' in t, domains))
+                self._regexed_domains = tuple(_.replace('*', '[a-z0-9_-]+').replace('.', '\.') for _ in filter(lambda t: '*' in t, domains))
                 self._domains = tuple(_ for _ in domains if _ not in self._regexed_domains)
 
         @property
@@ -95,6 +109,9 @@ class HereAuth(Auth):
         return self.keys.get(key, False)
 
     def __init__(self, data_dict):
+        self.allowed_prefixes = data_dict.get('allowed_prefixes', [])
+        assert type(self.allowed_prefixes) is list
+
         if 'keys' not in data_dict:
             print("Missing member `keys` in auth object")
             exit(1)
@@ -110,7 +127,17 @@ class HereAuth(Auth):
                 print("FATAL: You should merge domains for key: {}".format(i['key']))
                 exit(1)
 
-            self.keys[i['key']] = self.AuthKeyRecord(i['domains'])
+            if type(i['domains']) is list:
+                domains = list(i['domains'])  # make a copy fo' sure, to avoid getting a reference that'd be a bit awkwaaaaard when iterating on and appending to at the same time
+                for _ in i['domains']:
+                    for pre in self.allowed_prefixes:
+                        domains.append(pre + _)
+            else:
+                domains = i['domains']
+
+            print("prefixes: {}".format(self.allowed_prefixes))
+            print("{} << {}".format(i['key'], domains))
+            self.keys[i['key']] = self.AuthKeyRecord(domains)
 
 
 def load_config():
@@ -222,10 +249,12 @@ def fiddle_with_records(domain, content, what: RecOps, **how):
 def auth():
     k = request.headers.get('API-Key')
     if not k:
+        print("No API-Key header present.")
         return Unauthorized()
 
     r = conf.auth.keys.get(k)
     if not r:
+        print("Unknown API-Key received")
         return Unauthorized()
 
     setattr(request, '__auth', r)
