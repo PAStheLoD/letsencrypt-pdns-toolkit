@@ -34,7 +34,7 @@ class Conf:
 
         for subclass in Auth.__subclasses__():
             if subclass.__name__.lower().startswith(_m):
-                return subclass(data_dict)
+                return subclass(data_dict, conf=self)
         if _m_set:
             print("Unknown auth mode: {}".format(_m))
         else:
@@ -48,15 +48,32 @@ class Conf:
                        'pdns_api_key': str,
                        'allowed_prefixes': list,
                        'auth': self._Auth_loader}
-        conf_items = list(conf_schema.keys())
+
+        init_queues = {'primitive': [], 'complex': []}
 
         for k,v in conf_schema.items():
             if k in kwargs:
-                setattr(self, k, v(kwargs[k]))
-                del conf_items[k]
-                del kwargs[k]
+                def _get_deferred(k, v):
+                    def _deferred():
+                        setattr(self, k, v(kwargs[k]))
+                        del conf_schema[k]
+                        del kwargs[k]
 
-        for _ in conf_items.keys():
+                    return _deferred
+
+                if not isinstance(v, object):
+                    init_queues['primitive'].append(_get_deferred(k, v))
+                else:
+                    init_queues['complex'].append(_get_deferred(k, v))
+
+        print(kwargs)
+        for _ in init_queues['primitive']:
+            _()
+
+        for _ in init_queues['complex']:
+            _()
+
+        for _ in conf_schema.keys():
             setattr(self, _, None)
             self.logging.error('Setting default None for: {}'.format(_))
 
@@ -108,8 +125,8 @@ class HereAuth(Auth):
     def get(self, key):
         return self.keys.get(key, False)
 
-    def __init__(self, data_dict):
-        self.allowed_prefixes = data_dict.get('allowed_prefixes', [])
+    def __init__(self, data_dict, conf):
+        self.allowed_prefixes = getattr(conf, 'allowed_prefixes', [])
         assert type(self.allowed_prefixes) is list
 
         if 'keys' not in data_dict:
