@@ -1,29 +1,75 @@
 #!/bin/bash
 
-
 cd /opt/letsencrypt/
 
-if [[ ! -r le.config.json ]] ; then
-    echo "Missing le.config"
+if [[ ! -r le.config ]] ; then
+    echo "FATAL: Missing le.config"
     exit 1
 fi
 
+if [[ ! -x ./letsencrypt.sh ]] ; then
+    wget https://github.com/lukas2511/letsencrypt.sh/raw/44aca90cd7adbd88809b8555f3dd20fd13936a1d/letsencrypt.sh -O letsencrypt.sh
+    chmod +x letsencrypt.sh
+    if [[ ! -x ./letsencrypt.sh ]] ; then
+        echo "FATAL: Failed to download and chmod letsencrypt.sh :("
+        exit 1
+    fi
+fi
 
-cat le.config | jq '.'
+if [[ ! -x ./le-dns.sh ]] ; then
+    echo "FATAL: missing le-dns.sh (or not executable)"
+    exit 1
+fi
 
+function backup_file() {
+    if [[ -r "$1" ]] ; then
+        mv "$1" "${1}.backup-$(date +%Y-%m-%d_%H-%M-%S)"
+        return $?  
+    fi
+}
 
 function renew() {
-    ./letsencrypt.sh --cron --domain "$i" --hook ./le-dns.hook.sh --challenge dns-01
+    ./letsencrypt.sh --cron --domain "$i" --hook ./le-dns.sh --challenge dns-01
 }
+
+function install_new() {
+    priv_key_dest=$(cat le.config | grep -- domain="$1" | grep -Po 'priv_key_dest="\K[^"]+(?=")')
+    cert_dest=$(cat le.config | grep -- domain="$1" | grep -Po 'cert_dest="\K[^"]+(?=")')
+    chain_dest=$(cat le.config | grep -- domain="$1" | grep -Po 'chain_dest="\K[^"]+(?=")')
+    fullchain_dest=$(cat le.config | grep -- domain="$1" | grep -Po 'fullchain_dest="\K[^"]+(?=")')
+
+    if [[ "$priv_key_dest" != "" ]] ; then
+        backup_file "$priv_key_dest"
+        cp certs/$1/privkey.pem "$priv_key_dest"
+    fi
+    
+    if [[ "$cert_dest" != "" ]] ; then
+        backup_file "$cert_dest"
+        cp certs/$1/cert.pem "$cert_dest"
+    fi
+    
+    if [[ "$chain_dest" != "" ]] ; then
+        backup_file "$chain_dest"
+        cp certs/$1/chain.pem "$chain_dest"
+    fi
+    
+    if [[ "$fullchain_dest" != "" ]] ; then
+        backup_file "$fullchain_dest"
+        cp certs/$1/fullchain.pem "$fullchain_dest"
+    fi
+}
+
+domains=$(cat le.config | grep -Po 'domain="\K[^"]+(?=")')
 
 for i in $domains ; do
     if [[ -r certs/$i/cert.pem ]] ; then
+        # if less than 10 days remain, renew
         if ! openssl x509 -in certs/$i/cert.pem -checkend 864000 -noout ; then
            renew $i
+           install_new $i
         fi
     else
         renew $i
+        install_new $i        
     fi
 done
-
-
