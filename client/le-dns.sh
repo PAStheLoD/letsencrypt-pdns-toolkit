@@ -17,7 +17,7 @@ if [[ ! -r le.config ]] ; then
 fi
 
 
-if [[ $(grep -Po api_server le.config) != "api_server" ]] ; then
+if [[ $(grep -Po 'api_server=' le.config) != "api_server=" ]] ; then
     echo "API Server not configured (missing api_server="..." from le.config)"
     exit 1
 fi
