@@ -8,6 +8,7 @@ if [[ ! -r le.config ]] ; then
 fi
 
 if [[ ! -x ./letsencrypt.sh ]] ; then
+    # 44aca90cd7adbd88809b8555f3dd20fd13936a1d = Introduce per cert configuration directory DOMAINS_D (2016-07-13)
     wget https://github.com/lukas2511/letsencrypt.sh/raw/44aca90cd7adbd88809b8555f3dd20fd13936a1d/letsencrypt.sh -O letsencrypt.sh
     chmod +x letsencrypt.sh
     if [[ ! -x ./letsencrypt.sh ]] ; then
@@ -56,6 +57,12 @@ function install_new() {
     if [[ "$fullchain_dest" != "" ]] ; then
         backup_file "$fullchain_dest"
         cp certs/$1/fullchain.pem "$fullchain_dest"
+    fi
+    
+    exec_after=$(cat le.config | grep -- domain="$1" | grep -Po 'exec_after="\K[^"]+(?=")')
+    if [[ "$exec_after" != "" ]] ; then
+        echo "Executing: $exec_after"
+        bash -c "$exec_after"
     fi
 }
 
