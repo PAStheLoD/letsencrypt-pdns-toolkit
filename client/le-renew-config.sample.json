@@ -1,21 +1,6 @@
-{
-    "api_server": "10.0.0.1:8888",
-    "api_server_cert": "cert.pem",
-    "api_key": "demo^key",
-    "domains": [
-        {
-            "name": "mx.herp.derp",
-            "symlinks": {
-                "cert": "/etc/ssl/certs/mx.herp.derp.pem",
-                "privkey": "/etc/ssl/private/mx.herp.derp.key",
-                "CA": "/etc/ssl/certs/letsencrypt_x3_ca.pem"
-            },
-            "actions": {
-                "after": [
-                    "service dovecot restart",
-                    "service postfix restart"
-                ]
-            }
-        }
-    ]
-}
+api_server="10.0.0.1:8888"
+api_server_cert="api_server_cert.pem"
+
+
+domain="mx.herp.derp" key="rxP0C2X7yC33X7T0C2X8001" cert_dest="/etc/ssl/certs/mx.herp.derp.pem" priv_key_dest="/etc/ssl/private/mx.herp.derp.key" chain_dest="/etc/ssl/certs/letsencrypt_x3_ca.pem" exec_after="service dovecot restart ; service postfix restart"
+domain="www.herp.derp" key="aaaaaaaBBBBBBBB0000001" cert_dest="/etc/ssl/certs/www.derp.pem" priv_key_dest="/etc/ssl/private/www.herp.derp.key" chain_dest="/etc/ssl/certs/letsencrypt_x3_ca.pem" exec_after="service nginx restart ; apachectl graceful"
