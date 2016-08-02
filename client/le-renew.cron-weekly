@@ -9,7 +9,7 @@ fi
 
 if [[ ! -x ./letsencrypt.sh ]] ; then
     # 44aca90cd7adbd88809b8555f3dd20fd13936a1d = Introduce per cert configuration directory DOMAINS_D (2016-07-13)
-    wget https://github.com/lukas2511/letsencrypt.sh/raw/44aca90cd7adbd88809b8555f3dd20fd13936a1d/letsencrypt.sh -O letsencrypt.sh
+    wget https://github.com/lukas2511/letsencrypt.sh/raw/afabfff06e2dece1772ed788ac41ca0d297ab49b/letsencrypt.sh -O letsencrypt.sh
     chmod +x letsencrypt.sh
     if [[ ! -x ./letsencrypt.sh ]] ; then
         echo "FATAL: Failed to download and chmod letsencrypt.sh :("
