@@ -34,10 +34,10 @@ function renew() {
 }
 
 function install_new() {
-    priv_key_dest=$(cat le.config | grep -- domain="$1" | grep -Po 'priv_key_dest="\K[^"]+(?=")')
-    cert_dest=$(cat le.config | grep -- domain="$1" | grep -Po 'cert_dest="\K[^"]+(?=")')
-    chain_dest=$(cat le.config | grep -- domain="$1" | grep -Po 'chain_dest="\K[^"]+(?=")')
-    fullchain_dest=$(cat le.config | grep -- domain="$1" | grep -Po 'fullchain_dest="\K[^"]+(?=")')
+    priv_key_dest=$(cat le.config | grep -- domain=\"$1\" | grep -Po 'priv_key_dest="\K[^"]+(?=")')
+    cert_dest=$(cat le.config | grep -- domain=\"$1\" | grep -Po 'cert_dest="\K[^"]+(?=")')
+    chain_dest=$(cat le.config | grep -- domain=\"$1\" | grep -Po 'chain_dest="\K[^"]+(?=")')
+    fullchain_dest=$(cat le.config | grep -- domain=\"$1\" | grep -Po 'fullchain_dest="\K[^"]+(?=")')
 
     if [[ "$priv_key_dest" != "" ]] ; then
         backup_file "$priv_key_dest"
@@ -59,7 +59,7 @@ function install_new() {
         cp certs/$1/fullchain.pem "$fullchain_dest"
     fi
     
-    exec_after=$(cat le.config | grep -- domain="$1" | grep -Po 'exec_after="\K[^"]+(?=")')
+    exec_after=$(cat le.config | grep -- domain=\"$1\" | grep -Po 'exec_after="\K[^"]+(?=")')
     if [[ "$exec_after" != "" ]] ; then
         echo "Executing: $exec_after"
         bash -c "$exec_after"
@@ -77,6 +77,6 @@ for i in $domains ; do
         fi
     else
         renew $i
-        install_new $i        
+        install_new $i
     fi
 done
