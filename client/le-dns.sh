@@ -29,7 +29,7 @@ api_server_cert="$(grep -Po 'api_server_cert="\K[^"]+(?=")' le.config)"
 
 if [[ "$api_server_cert" != "" ]] ; then
     if [[ -r "$api_server_cert" ]] ; then
-        ca="--resolve \"le-crypt:8443:$(dig +short $api_server)\" --cacert \"$api_server_cert\""
+        ca="--resolve le-crypt:8443:$(dig +short $api_server) --cacert $api_server_cert"
         scheme="https"
     else
         echo "api_server_cert is set but not readable"
