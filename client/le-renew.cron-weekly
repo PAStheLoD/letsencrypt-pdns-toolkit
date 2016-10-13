@@ -30,7 +30,12 @@ function backup_file() {
 }
 
 function renew() {
-    ./letsencrypt.sh --cron --domain "$i" --hook ./le-dns.sh --challenge dns-01
+    if ! ./letsencrypt.sh --cron --domain "$i" --hook ./le-dns.sh --challenge dns-01 ; then
+      echo "ERROR: renew of $i failed!"
+      return 1
+    fi
+
+    return 0
 }
 
 function install_new() {
@@ -72,11 +77,9 @@ for i in $domains ; do
     if [[ -r certs/$i/cert.pem ]] ; then
         # if less than 10 days remain, renew
         if ! openssl x509 -in certs/$i/cert.pem -checkend 864000 -noout ; then
-           renew $i
-           install_new $i
+           renew $i && install_new $i
         fi
     else
-        renew $i
-        install_new $i
+        renew $i && install_new $i
     fi
 done
