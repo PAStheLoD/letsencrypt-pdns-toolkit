@@ -25,7 +25,7 @@ fi
 function backup_file() {
     if [[ -r "$1" ]] ; then
         mv "$1" "${1}.backup-$(date +%Y-%m-%d_%H-%M-%S)"
-        return $?  
+        return $?
     fi
 }
 
@@ -43,22 +43,22 @@ function install_new() {
         backup_file "$priv_key_dest"
         cp certs/$1/privkey.pem "$priv_key_dest"
     fi
-    
+
     if [[ "$cert_dest" != "" ]] ; then
         backup_file "$cert_dest"
         cp certs/$1/cert.pem "$cert_dest"
     fi
-    
+
     if [[ "$chain_dest" != "" ]] ; then
         backup_file "$chain_dest"
         cp certs/$1/chain.pem "$chain_dest"
     fi
-    
+
     if [[ "$fullchain_dest" != "" ]] ; then
         backup_file "$fullchain_dest"
         cp certs/$1/fullchain.pem "$fullchain_dest"
     fi
-    
+
     exec_after=$(cat le.config | grep -- domain=\"$1\" | grep -Po 'exec_after="\K[^"]+(?=")')
     if [[ "$exec_after" != "" ]] ; then
         echo "Executing: $exec_after"
@@ -66,7 +66,7 @@ function install_new() {
     fi
 }
 
-domains=$(cat le.config | grep -Po 'domain="\K[^"]+(?=")')
+domains=$(cat le.config | grep -Po '^[^#]*domain=.*$' | grep -Po 'domain="\K[^"]+(?=")')
 
 for i in $domains ; do
     if [[ -r certs/$i/cert.pem ]] ; then
