@@ -87,8 +87,8 @@ key="$(grep -Po "domain=\"$domain\"\s+key=\"\K[^\"]+(?=\")" le.config)"
 done="no"
 
 if [[ "$1" = "deploy_challenge" ]]; then
-  curl_output=$(curl "${scheme}://${api_server}/api/_acme-challenge.${domain}" $ca -d "$token" -H "API-Key: $key")
-  if [[ $(echo "$curl_output" | grep -i "ok" | wc -l) = 0 ]] ; then
+  curl_output=$(curl -s "${scheme}://${api_server}/api/_acme-challenge.${domain}" $ca -d "$token" -H "API-Key: $key")
+  if [[ $(echo "$curl_output" | grep "^ok$" | wc -l) = 0 ]] ; then
       echo "ERROR: failed to deploy challenge :/"
       exit 1
   fi
