@@ -43,7 +43,7 @@ if [[ "$api_server_cert" != "" ]] ; then
             ca="--resolve le-crypt:$port:$(dig +short $server_host) --cacert $api_server_cert"
         fi
         scheme="https"
-        api_server="le-crypt"
+        api_server="le-crypt:$port"
     else
         echo "api_server_cert is set but not readable"
         exit 1
