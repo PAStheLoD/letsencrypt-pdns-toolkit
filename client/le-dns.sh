@@ -29,8 +29,21 @@ api_server_cert="$(grep -Po 'api_server_cert="\K[^"]+(?=")' le.config)"
 
 if [[ "$api_server_cert" != "" ]] ; then
     if [[ -r "$api_server_cert" ]] ; then
-        ca="--resolve le-crypt:8443:$(dig +short $api_server) --cacert $api_server_cert"
+        if [[ $(echo $api_server | grep -P ':[0-9]+$' | wc -l) = 1 ]] ; then
+            port=$(echo "$api_server" | grep -Po ':\K[0-9]+$')
+        else
+            port=8443
+        fi
+
+        server_host=$(echo "$api_server" | grep -Po '[^:]+' | head -n1)
+
+        if [[ $(echo "$server_host" | grep -P '^([0-9]+\.)+[0-9]+$') = "$server_host" ]] ; then
+            ca="--resolve le-crypt:$port:$server_host --cacert $api_server_cert"
+        else
+            ca="--resolve le-crypt:$port:$(dig +short $server_host) --cacert $api_server_cert"
+        fi
         scheme="https"
+        api_server="le-crypt"
     else
         echo "api_server_cert is set but not readable"
         exit 1
