@@ -45,7 +45,7 @@ if [[ "$api_server_cert" != "" ]] ; then
         scheme="https"
         api_server="le-crypt:$port"
 
-        curl_test_output="$(curl \"${scheme}://${api_server}/api/\" $ca -I)"
+        curl_test_output="$(curl "${scheme}://${api_server}/api/" $ca -I)"
 
         if [[ $(echo "$curl_test_output" | grep 'curl: (60) server certificate verification failed' | wc -l) != 0 ]] ; then
             echo "ERROR: API server TLS verification failed :("
@@ -87,7 +87,11 @@ key="$(grep -Po "domain=\"$domain\"\s+key=\"\K[^\"]+(?=\")" le.config)"
 done="no"
 
 if [[ "$1" = "deploy_challenge" ]]; then
-  curl "${scheme}://${api_server}/api/_acme-challenge.${domain}" $ca -d "$token" -H "API-Key: $key"
+  curl_output=$(curl "${scheme}://${api_server}/api/_acme-challenge.${domain}" $ca -d "$token" -H "API-Key: $key")
+  if [[ $(echo "$curl_output" | grep -i "ok" | wc -l) = 0 ]] ; then
+      echo "ERROR: failed to deploy challenge :/"
+      exit 1
+  fi
 
   while ! dig +trace @8.8.8.8 -t TXT "_acme-challenge.${domain}" | grep -- "$token" > /dev/null
     do
