@@ -45,15 +45,15 @@ if [[ "$api_server_cert" != "" ]] ; then
         scheme="https"
         api_server="le-crypt:$port"
 
-        curl_test_output="$(curl "${scheme}://${api_server}/api/" $ca -I)"
+        curl_test_output="$(curl -sv "${scheme}://${api_server}/api/" $ca -I)"
 
-        if [[ $(echo "$curl_test_output" | grep 'curl: (60) server certificate verification failed' | wc -l) != 0 ]] ; then
+        if [[ $(echo "$curl_test_output" | grep 'server certificate verification failed' | wc -l) != 0 ]] ; then
             echo "ERROR: API server TLS verification failed :("
             openssl s_client -connect $server_host:$port |& grep 'Verify return code:'
             exit 1
         fi
 
-        if [[ $(echo "$curl_test_output" | grep -Po  '^HTTP/1\.1 | wc -l') = 0 ]] ; then
+        if [[ $(echo "$curl_test_output" | grep -Po  '^< HTTP/1\.1 | wc -l') = 0 ]] ; then
             echo "ERROR: API server cannot be reached"
             exit 1
         fi
@@ -102,7 +102,7 @@ if [[ "$1" = "deploy_challenge" ]]; then
 fi
 
 if [[ "$1" = "clean_challenge" ]]; then
-    curl -X DELETE "${scheme}://${api_server}/api/_acme-challenge.${domain}" $ca -d "$token" -H "API-Key: $key"
+    curl -s -X DELETE "${scheme}://${api_server}/api/_acme-challenge.${domain}" $ca -d "$token" -H "API-Key: $key"
 
     done="yes"
 fi
