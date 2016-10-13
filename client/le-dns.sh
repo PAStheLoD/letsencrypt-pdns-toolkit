@@ -44,6 +44,19 @@ if [[ "$api_server_cert" != "" ]] ; then
         fi
         scheme="https"
         api_server="le-crypt:$port"
+
+        curl_test_output="$(curl \"${scheme}://${api_server}/api/\" $ca -I)"
+
+        if [[ $(echo "$curl_test_output" | grep 'curl: (60) server certificate verification failed' | wc -l) != 0 ]] ; then
+            echo "ERROR: API server TLS verification failed :("
+            openssl s_client -connect $server_host:$port |& grep 'Verify return code:'
+            exit 1
+        fi
+
+        if [[ $(echo "$curl_test_output" | grep -Po  '^HTTP/1\.1 | wc -l') = 0 ]] ; then
+            echo "ERROR: API server cannot be reached"
+            exit 1
+        fi
     else
         echo "api_server_cert is set but not readable"
         exit 1
