@@ -10,7 +10,31 @@ app = Flask(__name__)
 
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
 
-import uwsgi
+try:
+    import uwsgi
+except ImportError:
+    import sys
+
+    class uwsgi:
+        opt = {}
+
+    args = iter(sys.argv)
+    next(args)  # skip argv[0] which is the name of the script
+    for val in args:
+        if '=' in val:
+            t = val.split('=')
+            if len(t) != 2:
+                print("Config error at (due to = sign): {}".format(t))
+            k, v = t
+        else:
+            k = val
+            v = next(args)
+
+        assert k.startswith('--')
+        k = k[2:]
+        uwsgi.opt[k] = v
+
+    print(uwsgi.opt)
 
 class URL(str):
     def __new__(cls, s):
@@ -24,6 +48,7 @@ class URL(str):
 
 class Conf:
     import logging
+
     def _Auth_loader(self, data_dict):
         _m = 'here'
         _m_set = False
@@ -66,6 +91,8 @@ class Conf:
                 else:
                     init_queues['complex'].append(_get_deferred(k, v))
 
+        self.logging.debug("Conf: init_queues:\n    primitive: {}\n    complex: {}".format(init_queues['primitive'], init_queues['complex']))
+
         for _ in init_queues['primitive']:
             _()
 
@@ -80,6 +107,8 @@ class Conf:
             self.logging.error('Unrecognized configuration data: "{}": {}'.format(k, repr(v)))
         if len(kwargs):
             exit(1)
+
+        self.logging.debug("Conf: done.\nConf: {}".format(self.__dict__))
 
 from abc import ABC, abstractmethod
 
@@ -262,6 +291,9 @@ def fiddle_with_records(domain, content, what: RecOps, **how):
 
 @app.before_request
 def auth():
+    if request.url_rule.rule == '/':
+        return
+
     k = request.headers.get('API-Key')
     if not k:
         print("No API-Key header present.")
