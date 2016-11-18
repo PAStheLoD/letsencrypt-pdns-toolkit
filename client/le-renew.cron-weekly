@@ -30,8 +30,8 @@ function backup_file() {
 }
 
 function renew() {
-    if ! ./letsencrypt.sh --cron --domain "$i" --hook ./le-dns.sh --challenge dns-01 ; then
-      echo "ERROR: renew of $i failed!"
+    if ! ./letsencrypt.sh --cron --domain "$1" --hook ./le-dns.sh --challenge dns-01 ; then
+      echo "ERROR: renew of $1 failed!"
       return 1
     fi
 
