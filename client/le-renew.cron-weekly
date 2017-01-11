@@ -44,32 +44,32 @@ function renew() {
 }
 
 function install_new() {
-    priv_key_dest=$(grep -- domain=\"$1\" le.config | grep -Po 'priv_key_dest="\K[^"]+(?=")')
-    cert_dest=$(grep -- domain=\"$1\" le.config | grep -Po 'cert_dest="\K[^"]+(?=")')
-    chain_dest=$(grep -- domain=\"$1\" le.config | grep -Po 'chain_dest="\K[^"]+(?=")')
-    fullchain_dest=$(grep -- domain=\"$1\" le.config | grep -Po 'fullchain_dest="\K[^"]+(?=")')
+    priv_key_dest=$(grep -- "domain=\"$1\"" le.config | grep -Po 'priv_key_dest="\K[^"]+(?=")')
+    cert_dest=$(grep -- "domain=\"$1\"" le.config | grep -Po 'cert_dest="\K[^"]+(?=")')
+    chain_dest=$(grep -- "domain=\"$1\"" le.config | grep -Po 'chain_dest="\K[^"]+(?=")')
+    fullchain_dest=$(grep -- "domain=\"$1\"" le.config | grep -Po 'fullchain_dest="\K[^"]+(?=")')
 
     if [[ "$priv_key_dest" != "" ]] ; then
         backup_file "$priv_key_dest"
-        cp certs/$1/privkey.pem "$priv_key_dest"
+        cp "certs/$1/privkey.pem" "$priv_key_dest"
     fi
 
     if [[ "$cert_dest" != "" ]] ; then
         backup_file "$cert_dest"
-        cp certs/$1/cert.pem "$cert_dest"
+        cp "certs/$1/cert.pem" "$cert_dest"
     fi
 
     if [[ "$chain_dest" != "" ]] ; then
         backup_file "$chain_dest"
-        cp certs/$1/chain.pem "$chain_dest"
+        cp "certs/$1/chain.pem" "$chain_dest"
     fi
 
     if [[ "$fullchain_dest" != "" ]] ; then
         backup_file "$fullchain_dest"
-        cp certs/$1/fullchain.pem "$fullchain_dest"
+        cp "certs/$1/fullchain.pem" "$fullchain_dest"
     fi
 
-    exec_after=$(grep -- domain=\"$1\" le.config | grep -Po 'exec_after="\K[^"]+(?=")')
+    exec_after=$(grep -- "domain=\"$1\"" le.config | grep -Po 'exec_after="\K[^"]+(?=")')
     if [[ "$exec_after" != "" ]] ; then
         echo "Executing: $exec_after"
         bash -c "$exec_after"
@@ -81,10 +81,11 @@ domains=$(grep -Po '^[^#]*domain=.*$' le.config | grep -Po 'domain="\K[^"]+(?=")
 for i in $domains ; do
     if [[ -r certs/$i/cert.pem ]] ; then
         # if less than 10 days remain, renew
-        if ! openssl x509 -in certs/$i/cert.pem -checkend 864000 -noout ; then
-           renew $i && install_new $i
+        if ! openssl x509 -in "certs/$i/cert.pem" -checkend 864000 -noout ; then
+           renew "$i" && install_new "$i"
         fi
     else
-        renew $i && install_new $i
+        renew "$i" && install_new "$i"
     fi
+
 done
