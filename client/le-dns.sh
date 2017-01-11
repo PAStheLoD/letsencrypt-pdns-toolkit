@@ -18,7 +18,7 @@ fi
 
 
 if [[ $(grep -Po '^(?!(\s*#+)+)\s*api_server=\K.*$' le.config) = "" ]] ; then
-    echo "API Server not configured (missing api_server="..." from le.config)"
+    echo "API Server not configured (missing api_server=\"...\" from le.config)"
     exit 1
 fi
 
@@ -29,7 +29,7 @@ api_server_cert="$(grep -Po '^(?!(\s*#+)+)\s*api_server_cert="?\K[^"]+(?="?$)' l
 
 if [[ "$api_server_cert" != "" ]] ; then
     if [[ -r "$api_server_cert" ]] ; then
-        if [[ $(echo $api_server | grep -P ':[0-9]+$' | wc -l) = 1 ]] ; then
+        if [[ $(echo "$api_server" | grep -Pc ':[0-9]+$') = 1 ]] ; then
             port=$(echo "$api_server" | grep -Po ':\K[0-9]+$')
         else
             port=8443
@@ -40,20 +40,21 @@ if [[ "$api_server_cert" != "" ]] ; then
         if [[ $(echo "$server_host" | grep -P '^([0-9]+\.)+[0-9]+$') = "$server_host" ]] ; then
             ca="--resolve le-crypt:$port:$server_host --cacert $api_server_cert"
         else
-            ca="--resolve le-crypt:$port:$(dig +short $server_host) --cacert $api_server_cert"
+            ca="--resolve le-crypt:$port:$(dig +short "$server_host") --cacert $api_server_cert"
         fi
         scheme="https"
         api_server="le-crypt:$port"
-
+        
+        # shellcheck disable=SC2086 
         curl_test_output="$(curl -sv "${scheme}://${api_server}/api/" $ca -I)"
 
-        if [[ $(echo "$curl_test_output" | grep 'server certificate verification failed' | wc -l) != 0 ]] ; then
+        if [[ $(echo "$curl_test_output" | grep -c 'server certificate verification failed') != 0 ]] ; then
             echo "ERROR: API server TLS verification failed :("
-            openssl s_client -connect $server_host:$port |& grep 'Verify return code:'
+            openssl s_client -connect "$server_host:$port" |& grep 'Verify return code:'
             exit 1
         fi
 
-        if [[ $(echo "$curl_test_output" | grep -Po  '^< HTTP/1\.1 | wc -l') = 0 ]] ; then
+        if [[ $(echo "$curl_test_output" | grep -Poc  '^< HTTP/1\.1') = 0 ]] ; then
             echo "ERROR: API server cannot be reached"
             exit 1
         fi
@@ -66,7 +67,7 @@ else
     ca=""
 fi
 
-echo "DEBUG: args: $@"
+echo "DEBUG: args: $*"
 
 if [[ ! "$#" -gt 3 ]] ; then
     echo "usage: ./$0 [mode] [domain] \"\" [token!]"
@@ -75,7 +76,6 @@ fi
 
 domain="${2}"
 token="${4}"
-timestamp=$(date +%s)
 
 if [[ $(grep -Po "domain=\"$domain\"" le.config | wc -l) != 1 ]] ; then
     echo "domain=\"$domain\" must be configured in le.config"
@@ -88,7 +88,7 @@ done="no"
 
 if [[ "$1" = "deploy_challenge" ]]; then
   curl_output=$(curl -s "${scheme}://${api_server}/api/_acme-challenge.${domain}" $ca -d "$token" -H "API-Key: $key")
-  if [[ $(echo "$curl_output" | grep "^ok$" | wc -l) = 0 ]] ; then
+  if [[ $(echo "$curl_output" | grep -c "^ok$") = 0 ]] ; then
       echo "ERROR: failed to deploy challenge :/"
       exit 1
   fi
