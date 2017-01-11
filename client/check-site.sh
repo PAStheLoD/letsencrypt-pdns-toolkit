@@ -11,4 +11,7 @@ if [[ "$P" = "" ]] ; then
   P=443
 fi
 
-echo | openssl s_client -connect "$1:$P" 2>/dev/null | openssl x509  -noout -text  | grep After
+T=$(echo | openssl s_client -connect "$1:$P" 2>/dev/null)
+[[ $(echo "$T" | grep -c 'BEGIN CERT') = 0 ]] && { echo "error" ; exit 3 ; }
+
+echo "$T" | openssl x509  -noout -text  | grep After
