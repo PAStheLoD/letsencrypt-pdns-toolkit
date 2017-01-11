@@ -17,15 +17,15 @@ if [[ ! -r le.config ]] ; then
 fi
 
 
-if [[ $(grep -Po 'api_server=' le.config) != "api_server=" ]] ; then
+if [[ $(grep -Po '^(?!(\s*#+)+)\s*api_server=\K.*$' le.config) = "" ]] ; then
     echo "API Server not configured (missing api_server="..." from le.config)"
     exit 1
 fi
 
-api_server=$(grep -Po 'api_server="\K[^"]+(?=")' le.config)
+api_server=$(grep -Po '^(?!(\s*#+)+)\s*api_server="?\K[^"]+(?="?$)' le.config)
 
 
-api_server_cert="$(grep -Po 'api_server_cert="\K[^"]+(?=")' le.config)"
+api_server_cert="$(grep -Po '^(?!(\s*#+)+)\s*api_server_cert="?\K[^"]+(?="?$)' le.config)"
 
 if [[ "$api_server_cert" != "" ]] ; then
     if [[ -r "$api_server_cert" ]] ; then
@@ -82,7 +82,7 @@ if [[ $(grep -Po "domain=\"$domain\"" le.config | wc -l) != 1 ]] ; then
     exit 1
 fi
 
-key="$(grep -Po "domain=\"$domain\"\s+key=\"\K[^\"]+(?=\")" le.config)"
+key="$(grep -Po "^(?!(\s*#+)+)\s*domain=\"?$domain\"?\s+key=\"?\K[^\"]+(?=\"?(\s+|\$))" le.config)"
 
 done="no"
 
