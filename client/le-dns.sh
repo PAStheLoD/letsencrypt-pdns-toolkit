@@ -46,7 +46,7 @@ if [[ "$api_server_cert" != "" ]] ; then
         api_server="le-crypt:$port"
         
         # shellcheck disable=SC2086 
-        curl_test_output="$(curl -sv "${scheme}://${api_server}/api/" $ca -I)"
+        curl_test_output="$(curl -sv "${scheme}://${api_server}/api/" $ca -I 2>&1)"
 
         if [[ $(echo "$curl_test_output" | grep -c 'server certificate verification failed') != 0 ]] ; then
             echo "ERROR: API server TLS verification failed :("
