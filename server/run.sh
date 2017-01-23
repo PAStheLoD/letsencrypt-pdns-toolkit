@@ -13,4 +13,4 @@ if [[ "$uwsgi" = "" ]] || [[ ! -x "$uwsgi" ]] ; then
     exit 1
 fi
 
-exec uwsgi --http 0.0.0.0:8888 --https 0.0.0.0:8443,cert.pem,cert.key --threads 2 -w le-api:app --set-ph config-file=le-config.json
+exec uwsgi --need-app --http 0.0.0.0:8888 --https 0.0.0.0:8443,cert.pem,cert.key --threads 2 -w le-api:app --set-ph config-file=le-config.json --touch-reload le-config.json --set-ph log-level=debug
