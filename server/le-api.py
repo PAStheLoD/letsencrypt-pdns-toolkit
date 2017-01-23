@@ -10,31 +10,7 @@ app = Flask(__name__)
 
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024
 
-try:
-    import uwsgi
-except ImportError:
-    import sys
-
-    class uwsgi:
-        opt = {}
-
-    args = iter(sys.argv)
-    next(args)  # skip argv[0] which is the name of the script
-    for val in args:
-        if '=' in val:
-            t = val.split('=')
-            if len(t) != 2:
-                print("Config error at (due to = sign): {}".format(t))
-            k, v = t
-        else:
-            k = val
-            v = next(args)
-
-        assert k.startswith('--')
-        k = k[2:]
-        uwsgi.opt[k] = v
-
-    print(uwsgi.opt)
+import uwsgi
 
 class URL(str):
     def __new__(cls, s):
@@ -48,7 +24,6 @@ class URL(str):
 
 class Conf:
     import logging
-
     def _Auth_loader(self, data_dict):
         _m = 'here'
         _m_set = False
@@ -67,6 +42,9 @@ class Conf:
 
         exit(1)
 
+    def __repr__(self):
+        return str('Conf object: {}'.format(self.__dict__))
+
     def __init__(self, **kwargs):
         conf_schema = {'pdns_api_url': URL,
                        'pdns_server_id': str,
@@ -80,21 +58,27 @@ class Conf:
             if k in kwargs:
                 def _get_deferred(k, v):
                     def _deferred():
+                        self.logging.debug('>>>> setting Conf attr: {}: {} (val: {})'.format(k, v, kwargs[k]))
                         setattr(self, k, v(kwargs[k]))
                         del conf_schema[k]
                         del kwargs[k]
 
                     return _deferred
 
-                if not isinstance(v, object):
+                self.logging.debug('>>>>> type of {}: {} (isinstance of object?: {})'.format(k, v, isinstance(v, object)))
+                if v in (str, list, URL, int, bool, float):
+                    self.logging.debug('>>>> appending to primitive queue: {} {} (val: {})'.format(k, v, kwargs[k]))
                     init_queues['primitive'].append(_get_deferred(k, v))
                 else:
+                    self.logging.debug('>>>> appending to complex queue: {} {} (val: {})'.format(k, v, kwargs[k]))
                     init_queues['complex'].append(_get_deferred(k, v))
 
-        self.logging.debug("Conf: init_queues:\n    primitive: {}\n    complex: {}".format(init_queues['primitive'], init_queues['complex']))
+        self.logging.debug('>>>> before primitive queue')
 
         for _ in init_queues['primitive']:
             _()
+
+        self.logging.debug('>>>> before complex queue')
 
         for _ in init_queues['complex']:
             _()
@@ -108,8 +92,6 @@ class Conf:
         if len(kwargs):
             exit(1)
 
-        self.logging.debug("Conf: done.\nConf: {}".format(self.__dict__))
-
 from abc import ABC, abstractmethod
 
 class Auth(ABC):
@@ -120,6 +102,9 @@ class Auth(ABC):
 
 class HereAuth(Auth):
     class AuthKeyRecord:
+        def __repr__(self):
+            return "<AKRecord: {}>".format(self.__dict__)
+
         def __init__(self, domains):
             self._admin = False
 
@@ -152,6 +137,9 @@ class HereAuth(Auth):
 
     def get(self, key):
         return self.keys.get(key, False)
+
+    def __repr__(self):
+        return "<HereAuth {}>".format(self.keys)
 
     def __init__(self, data_dict, conf):
         self.allowed_prefixes = getattr(conf, 'allowed_prefixes', [])
@@ -190,10 +178,10 @@ def load_config():
         exit(1)
 
     conf_data = json.loads(open(cf).read())
+    app.logger.debug('loading config from {}'.format(cf.decode('ascii', 'ignore')))
     return Conf(**conf_data)
 
 
-conf = load_config()
 
 def is_domain_valid(domain):
     if re.fullmatch('[a-z0-9-._]+\.[a-z]+', domain):
@@ -282,6 +270,7 @@ def fiddle_with_records(domain, content, what: RecOps, **how):
     }
 
 
+    print("Response from PowerDNS server")
     print(json.dumps(req, indent=4))
 
     r = requests.patch('{}servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key}, json=req)
@@ -291,8 +280,7 @@ def fiddle_with_records(domain, content, what: RecOps, **how):
 
 @app.before_request
 def auth():
-    if request.url_rule.rule == '/':
-        return
+    if hasattr(request, 'url_rule') and request.url_rule: print(request.url_rule.__dict__)
 
     k = request.headers.get('API-Key')
     if not k:
@@ -307,14 +295,18 @@ def auth():
     setattr(request, '__auth', r)
 
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 def hello():
     return "use /api/<zone>"
 
 
 @app.route("/api/<domain>", methods=["GET"])
 def api_get(domain):
+
+    app.logger.debug("request __auth: {}, domain: {}".format(request.__auth, domain))
+
     if not request.__auth.domain_matches(domain):
+        print("Unknown domain: {} for key (prefix): {}...".format(domain, request.headers.get('API-Key')[0:10]))
         return Unauthorized()
 
     if not is_domain_valid(domain):
@@ -370,7 +362,9 @@ def api_delete(domain):
 
     return "l8r"
 
-
+def __bootstrap():
+    global conf
+    conf = load_config()
 
 
 if __name__ == "__main__":
@@ -380,12 +374,27 @@ if __name__ == "__main__":
     if '--no-debug' in sys.argv:
         debug = False
 
+    print("Starting Flask app")
+    __bootstrap()
     app.run(debug=debug)
+    print("Bye")
+
 else:
     import logging
 
     # Log only in production mode.
     if not app.debug:
         stream_handler = logging.StreamHandler()
-        stream_handler.setLevel(logging.INFO)
         app.logger.addHandler(stream_handler)
+
+        loglevel = uwsgi.opt.get('log-level', b'').decode('ascii', 'ignore').lower()
+
+        if loglevel == 'debug':
+            app.logger.setLevel(logging.DEBUG)
+            logging.getLogger().setLevel(logging.DEBUG)
+        else:
+            app.logger.setLevel(logging.INFO)
+
+    app.logger.info("started with log-level: {}".format(loglevel))
+    __bootstrap()
+    app.logger.debug('bootstrap done, conf = {}'.format(repr(conf)))
