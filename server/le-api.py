@@ -191,7 +191,7 @@ def is_domain_valid(domain):
 
 def is_zone_exists(zone):
     r = requests.get('{}servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key})
-    if r.status_code == 422:
+    if r.status_code == 422 or r.status_code == 404:
         return False
     return True
 
@@ -233,6 +233,8 @@ def fiddle_with_records(domain, content, what: RecOps, **how):
         return False
     r = requests.get('{}servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key})
     zone_data = json.loads(r.text)
+
+    app.logging.debug('fiddling with: {}'.format(zone_data))
 
     records = []
     for rr in zone_data.get('records', []):
