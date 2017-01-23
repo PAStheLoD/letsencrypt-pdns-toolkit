@@ -1,3 +1,5 @@
 __pycache__
 le-config.json
 le-renew-config.json
+server/*.key
+server/*.pem
