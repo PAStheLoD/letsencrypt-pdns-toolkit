@@ -190,7 +190,7 @@ def is_domain_valid(domain):
 
 
 def is_zone_exists(zone):
-    r = requests.get('{}servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key})
+    r = requests.get('{}api/v1/servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key})
     if r.status_code == 422 or r.status_code == 404:
         return False
     return True
@@ -231,10 +231,10 @@ def fiddle_with_records(domain, content, what: RecOps, **how):
     zone = find_zone_for_domain(domain)
     if not zone:
         return False
-    r = requests.get('{}servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key})
+    r = requests.get('{}api/v1/servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key})
     zone_data = json.loads(r.text)
 
-    app.logging.debug('fiddling with: {}'.format(zone_data))
+    app.logger.debug('fiddling with: {}'.format(zone_data))
 
     records = []
     for rr in zone_data.get('records', []):
@@ -259,6 +259,8 @@ def fiddle_with_records(domain, content, what: RecOps, **how):
                     "name": domain # API docs bug?
                 }]
 
+    if not domain.endswith('.'):
+        domain = '{}.'.format(domain)
     req = {
         "rrsets": [
             {
@@ -275,9 +277,11 @@ def fiddle_with_records(domain, content, what: RecOps, **how):
     print("Response from PowerDNS server")
     print(json.dumps(req, indent=4))
 
-    r = requests.patch('{}servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key}, json=req)
+    r = requests.patch('{}api/v1/servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key}, json=req)
     if r.status_code < 400:
         return True
+    else:
+        app.logger.error('got an error from pdns: {}'.format(r.text))
 
 
 @app.before_request
