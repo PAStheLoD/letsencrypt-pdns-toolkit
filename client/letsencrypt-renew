@@ -1,25 +1,26 @@
 #!/bin/bash
 
-cd /opt/letsencrypt/ || { echo "Missing program directory" ; exit 1 ; }
+WORKDIR="${WORKDIR:-/opt/letsencrypt}"
+cd $WORKDIR || { echo "Missing program directory" ; exit 1 ; }
 
-if [[ ! -t 0 ]] ; then
+[[ ! -t 0 ]] && {
    exec >> >(tee -a letsencrypt-cron.log)
    exec 2>&1
-fi
+}
 
-if [[ ! -r le.config ]] ; then
+[[ ! -r le.config ]] && {
     echo "FATAL: Missing le.config"
     exit 1
-fi
+}
 
-if [[ ! -x ./letsencrypt.sh ]] ; then
-    # 44aca90cd7adbd88809b8555f3dd20fd13936a1d = Introduce per cert configuration directory DOMAINS_D (2016-07-13)
-    wget https://github.com/lukas2511/letsencrypt.sh/raw/afabfff06e2dece1772ed788ac41ca0d297ab49b/letsencrypt.sh -O letsencrypt.sh
-    chmod +x letsencrypt.sh
-    if [[ ! -x ./letsencrypt.sh ]] ; then
-        echo "FATAL: Failed to download and chmod letsencrypt.sh :("
+if [[ ! -x ./dehydrated ]] ; then
+    curl -sL https://raw.githubusercontent.com/lukas2511/dehydrated/3d97799d6a269a727fb041f60e0b587c273fbe95/dehydrated -o dehydrated
+    chmod +x dehydrated
+    if [[ ! -x ./dehydrated ]] ; then
+        echo "FATAL: Failed to download and chmod dehydrated :("
         exit 1
     fi
+    ./dehydrated --register --accept-terms
 fi
 
 if [[ ! -x ./le-dns.sh ]] ; then
@@ -35,7 +36,7 @@ function backup_file() {
 }
 
 function renew() {
-    if ! ./letsencrypt.sh --cron --domain "$1" --hook ./le-dns.sh --challenge dns-01 ; then
+    if ! ./dehydrated --cron --domain "$1" --hook ./le-dns.sh --challenge dns-01 ; then
       echo "ERROR: renew of $1 failed!"
       return 1
     fi
