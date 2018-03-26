@@ -85,7 +85,7 @@ echo "DEBUG: args: $*"
     exit 0
 }
 
-[[ "$1" = "startup_hook" ]] || [[ "${1}" = "exit_hook" ]] || [[ "${1}" = "unchanged_cert" ]] || [[ "${1}" = "deploy_cert" ]] && {
+[[ "$1" = "startup_hook" ]] || [[ "${1}" = "exit_hook" ]] || [[ "${1}" = "unchanged_cert" ]] || [[ "${1}" = "deploy_cert" ]] || [[ "${1} = "generate_csr" ]] && {
     # do nothing for now
     exit 0
 }
@@ -138,6 +138,8 @@ done="no"
 
     done="yes"
 }
+
+
 
 [[ ! "${done}" = "yes" ]] && {
     echo Unkown hook "${1}"
