@@ -3,7 +3,7 @@
 import requests
 import re
 import rapidjson as json
-from pprint import pprint
+from pprint import pprint, pformat
 from werkzeug.exceptions import NotFound, Unauthorized
 from flask import Flask, request
 app = Flask(__name__)
@@ -234,21 +234,27 @@ def fiddle_with_records(domain, content, what: RecOps, **how):
     r = requests.get('{}api/v1/servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key})
     zone_data = json.loads(r.text)
 
-    app.logger.debug('fiddling with: {}'.format(zone_data))
+    app.logger.debug('fiddling with: {}'.format(pformat(zone_data)))
+
+    if not domain.endswith('.'):
+        domain = '{}.'.format(domain)
 
     records = []
-    for rr in zone_data.get('records', []):
+    for rr in zone_data.get('rrsets', []):
         if rr.get('name') == domain and rr.get('type') == how.get('type'):
-            if rr.get('content') == content:
-                if what == RecOps.delete or how.get('replace', False):
-                    continue
+            for rec in rr.get('records', []):
+                if rec.get('content') == content and rr.get('disabled', False) == False:
+                    if what == RecOps.delete or how.get('replace', False):
+                        continue
 
-            # docs inconsistency
-            # we need to leave name in, but the docs does not show that
-            # https://doc.powerdns.com/md/httpapi/api_spec/#url-apiv1serversserver95idzoneszone95id
-            # https://doc.powerdns.com/md/httpapi/README/#examples-authoritative-server
-            # del rr['name']
-            records.append(rr)
+                # docs inconsistency
+                # we need to leave name in, but the docs does not show that
+                # https://doc.powerdns.com/md/httpapi/api_spec/#url-apiv1serversserver95idzoneszone95id
+                # https://doc.powerdns.com/md/httpapi/README/#examples-authoritative-server
+                # del rr['name']
+                app.logger.debug('appppppppppppending! {}'.format(rec))
+
+                records.append(rec)
 
     if what == RecOps.add_or_replace:
         records += [{
@@ -274,7 +280,7 @@ def fiddle_with_records(domain, content, what: RecOps, **how):
     }
 
 
-    print("Response from PowerDNS server")
+    print("Request")
     print(json.dumps(req, indent=4))
 
     r = requests.patch('{}api/v1/servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key}, json=req)
@@ -341,7 +347,7 @@ def api_post(domain):
         return "huh"
 
     content = json.dumps(request.get_data())  # yes, get_data uses (in the request object) an internal cache by default
-    if add_or_replace_record(domain, content):
+    if add_or_replace_record(domain, content, replace=False):
         return "ok"
     else:
         return "err :C"
