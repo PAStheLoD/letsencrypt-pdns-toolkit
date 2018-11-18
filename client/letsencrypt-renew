@@ -1,7 +1,7 @@
 #!/bin/bash
 
 WORKDIR="${WORKDIR:-/opt/letsencrypt}"
-cd $WORKDIR || { echo "Missing program directory" ; exit 1 ; }
+cd $WORKDIR &>/dev/null || { echo "Missing program directory" ; exit 1 ; }
 
 [[ ! -t 0 ]] && {
    exec >> >(tee -a letsencrypt-cron.log)
@@ -14,7 +14,7 @@ cd $WORKDIR || { echo "Missing program directory" ; exit 1 ; }
 }
 
 if [[ ! -x ./dehydrated ]] ; then
-    curl -sL https://raw.githubusercontent.com/lukas2511/dehydrated/3d97799d6a269a727fb041f60e0b587c273fbe95/dehydrated -o dehydrated
+    curl -sL https://raw.githubusercontent.com/lukas2511/dehydrated/5783a2dd45c92f5cacec54c3fa1d6d8d258d03bf/dehydrated -o dehydrated
     chmod +x dehydrated
     if [[ ! -x ./dehydrated ]] ; then
         echo "FATAL: Failed to download and chmod dehydrated :("
@@ -36,10 +36,18 @@ function backup_file() {
 }
 
 function renew() {
-    if ! ./dehydrated --cron --domain "$1" --hook ./le-dns.sh --challenge dns-01 ; then
+    grep -- domain=\"$1\" le.config | grep -iqP 'wildcard=(yes|y|true|1)' && {
+        ./dehydrated --cron --domain "*.$1" --domain "$1" --alias "$1" --hook ./le-dns.sh --challenge dns-01
+        R=$?
+    } || {
+        ./dehydrated --cron --domain "$1" --hook ./le-dns.sh --challenge dns-01
+        R=$?
+    }
+
+    [[ "$R" != 0 ]] && {
       echo "ERROR: renew of $1 failed!"
       return 1
-    fi
+    }
 
     return 0
 }

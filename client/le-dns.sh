@@ -26,6 +26,10 @@ fi
 
 api_server_cert="$(grep -Po '^(?!(\s*#+)+)\s*api_server_cert="?\K[^"]+(?="?$)' le.config || true)"
 
+
+which dig &>/dev/null || { echo "dig program seems to be missing" ; exit 1 ; }
+
+
 function test_server() {
     local url="${1}"
     local cert_hack="${2}"
@@ -77,7 +81,7 @@ function test_server() {
     ca=""
 }
 
-echo "DEBUG: args: $*"
+echo "DEBUG: args: $*" >&2
 
 [[ ! "$#" -gt 0 ]] && {
     echo "usage: ./$0 [mode]"
@@ -90,8 +94,10 @@ echo "DEBUG: args: $*"
     exit 0
 }
 
+[[ "$1" = 'this_hookscript_is_broken__dehydrated_is_working_fine__please_ignore_unknown_hooks_in_your_script' ]] && exit 0
+
 [[ ! "$#" -gt 3 ]] && {
-    echo "usage: ./$0 [mode] [domain] \"\" [token!]"
+    echo "usage: ./$0 [mode] [domain] \"\" [token!]" >&2
     exit 0
 }
 
@@ -103,7 +109,7 @@ token="${4}"
     exit 1
 }
 
-key="$(grep -Po "^(?!(\s*#+)+)\s*domain=\"?$domain\"?\s+key=\"?\K[^\"]+(?=\"?(\s+|\$))" le.config || true)"
+key=$(grep -P "^(?!(\s*#+)+)\s*domain=\"?$domain\"?" le.config | grep -Po "key=\"?\K[^\"]+(?=\"?(\s+|\$))" || :)
 
 [[ "$key" = "" ]] && {
     echo "Missing key=\"...\" from config for domain: $domain"
@@ -139,11 +145,9 @@ done="no"
     done="yes"
 }
 
-
-
 [[ ! "${done}" = "yes" ]] && {
-    echo Unkown hook "${1}"
-    exit 1
+    echo "Ignoring unkown hook ${1}" >&2
+    exit 0
 }
 
 exit 0
