@@ -1,4 +1,4 @@
-api_server="10.0.0.1:8888"
+api_server="https://10.0.0.1:8888"
 api_server_cert="api_server_cert.pem"
 
 

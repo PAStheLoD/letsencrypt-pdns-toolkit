@@ -1,6 +1,6 @@
 #!/bin/bash
 
-WORKDIR="${WORKDIR:-/opt/letsencrypt}"
+WORKDIR="${WORKDIR:-$(dirname $(readlink -f $0))}"
 cd $WORKDIR &>/dev/null || { echo "Missing program directory" ; exit 1 ; }
 
 [[ ! -t 0 ]] && {
