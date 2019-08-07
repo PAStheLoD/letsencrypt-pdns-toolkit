@@ -90,7 +90,7 @@ domains=$(grep -Po '^[^#]*domain=.*$' le.config | grep -Po '\bdomain="\K[^"]+(?=
 for i in $domains ; do
     if [[ -r certs/$i/cert.pem ]] ; then
         # if less than 10 days remain, renew
-        if ! openssl x509 -in "certs/$i/cert.pem" -checkend 864000 -noout ; then
+        if ! openssl x509 -in "certs/$i/cert.pem" -checkend 864000 -noout > /dev/null ; then
            renew "$i" && install_new "$i"
         fi
     else
