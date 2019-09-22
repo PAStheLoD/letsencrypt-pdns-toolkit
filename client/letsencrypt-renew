@@ -14,7 +14,7 @@ cd $WORKDIR &>/dev/null || { echo "Missing program directory" ; exit 1 ; }
 }
 
 if [[ ! -x ./dehydrated ]] ; then
-    curl -sL https://raw.githubusercontent.com/lukas2511/dehydrated/5783a2dd45c92f5cacec54c3fa1d6d8d258d03bf/dehydrated -o dehydrated
+    curl -sL https://raw.githubusercontent.com/lukas2511/dehydrated/05eda91a2fbaed1e13c733230238fc68475c535e/dehydrated -o dehydrated
     chmod +x dehydrated
     if [[ ! -x ./dehydrated ]] ; then
         echo "FATAL: Failed to download and chmod dehydrated :("

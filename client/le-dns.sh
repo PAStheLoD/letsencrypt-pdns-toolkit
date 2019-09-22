@@ -95,11 +95,13 @@ echo "DEBUG: args: $*" >&2
 }
 
 [[ "$1" = 'this_hookscript_is_broken__dehydrated_is_working_fine__please_ignore_unknown_hooks_in_your_script' ]] && exit 0
+[[ "$1" = 'sync_cert' ]] && exit 0
 
 [[ ! "$#" -gt 3 ]] && {
     echo "usage: ./$0 [mode] [domain] \"\" [token!]" >&2
     exit 0
 }
+
 
 domain="${2}"
 token="${4}"
