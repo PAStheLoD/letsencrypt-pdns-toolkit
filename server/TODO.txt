@@ -1,1 +1,0 @@
-* there seems to be a bug in config file parsing and internal config dict building - some kind of not-so-deterministic fuckup
