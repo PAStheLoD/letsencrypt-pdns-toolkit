@@ -3,3 +3,11 @@ le-config.json
 le-renew-config.json
 server/*.key
 server/*.pem
+
+client/accounts/
+client/certs/
+client/chains/
+client/config
+client/dehydrated
+client/api_server_cert.pem
+client/le.config
