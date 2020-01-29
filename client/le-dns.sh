@@ -133,7 +133,7 @@ done="no"
       exit 1
   }
 
-  local t=30
+  t=30
   while ! dig +trace @8.8.8.8 -t TXT "_acme-challenge.${domain}" | grep -- "$token" > /dev/null ; do
        printf "."
        sleep 3
