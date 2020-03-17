@@ -6,7 +6,7 @@ if [[ ! -r cert.pem ]] || [[ ! -r cert.key ]] ; then
     openssl req -x509 -newkey rsa:2048 -keyout cert.key -out cert.pem -days 720 -subj '/CN=le-crypt' -nodes || { echo "Error while generating server keypair/cert"; exit 1; }
 fi
 
-export PATH=/opt/pdns-rest-api-server.venv/bin:$PATH
+export PATH=$(readlink -f ./venv/bin):$PATH
 
 uwsgi=$(which uwsgi 2>/dev/null)
 
