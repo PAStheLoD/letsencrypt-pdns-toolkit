@@ -236,9 +236,13 @@ def fiddle_with_records(domain, content, what: RecOps, **how):
         app.logger.error("trying got fiddle with domain for which no zone is found: {domain}")
         return False
 
+    if not domain.endswith('.'):
+        domain = '{}.'.format(domain)
+
+
     if is_external_zone(zone):
         ext = get_handler_for_zone(zone)
-        return ext.fiddle_with_records(domain, content, what, **how)
+        return ext['instance'].fiddle_with_records(ext['data'], domain, content, what, **how)
     else:
         return pdns_fiddle(domain, content, what, **how)
 
@@ -247,9 +251,6 @@ def pdns_fiddle(domain, content, what: RecOps, **how):
     zone_data = json.loads(r.text)
 
     app.logger.debug('fiddling with: {}'.format(pformat(zone_data)))
-
-    if not domain.endswith('.'):
-        domain = '{}.'.format(domain)
 
     records = []
     for rr in zone_data.get('rrsets', []):
@@ -399,16 +400,41 @@ class ExtCloudflare:
 
             r = requests.get(f'https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records', headers={'Authorization': f'Bearer {token}'})
             if r.status_code != 200:
-                print(f"Error validating Cloudflare token for domain {domain} (zone id: {zone_id})")
+                print(f"Error validating Cloudflare token for domain {name} (zone id: {zone_id})")
                 sys.exit(1)
             else:
-                print(f"Cloudflare: validated token for {domain}")
-                conf.external_zones[domain] = self
+                print(f"Cloudflare: validated token for {name}")
+                conf.external_zones[name] = {
+                    'instance': self,
+                    'data': {
+                        'zone_id': zone_id, 'token': token
+                    }
+                }
 
         self.domains = domains
 
-    def fiddle_with_records(self, domain, content, what: RecOps, **how)
-        print(f"fiddling! domain: {domain}, content: {content}, what: {what}, ... how: {how}")
+    def fiddle_with_records(self, data, domain, content, what: RecOps, **how):
+        zone_id = data['zone_id']
+        token = data['token']
+        print(f"fiddling! domain: {domain}, zone: {zone_id}, content: {content}, what: {what}, ... how: {how}")
+
+
+
+        
+        # https://api.cloudflare.com/#dns-records-for-a-zone-update-dns-record
+        return
+        # uh oh deadcode!
+
+        page = 1
+        zone_date = []
+        while True:
+            r = requests.get(f'https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records?per_page=50&page={page}', headers={'Authorization': f'Bearer {token}'})
+            rj = json.loads(r.text)
+            zone_data += json.loads(r.text)['result']
+            if rj['result_info']['total_pages'] == rj['result_info']['page']:
+                break
+
+
 
 
 def is_external_zone(zone_name):
