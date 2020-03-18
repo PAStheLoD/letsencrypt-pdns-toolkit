@@ -23,6 +23,8 @@ class URL(str):
 
 
 class Conf:
+    external_zones = {}
+
     import logging
     def _Auth_loader(self, data_dict):
         _m = 'here'
@@ -50,6 +52,7 @@ class Conf:
                        'pdns_server_id': str,
                        'pdns_api_key': str,
                        'allowed_prefixes': list,
+                       'external': list,
                        'auth': self._Auth_loader}
 
         init_queues = {'primitive': [], 'complex': []}
@@ -230,7 +233,16 @@ def fiddle_with_records(domain, content, what: RecOps, **how):
 
     zone = find_zone_for_domain(domain)
     if not zone:
+        app.logger.error("trying got fiddle with domain for which no zone is found: {domain}")
         return False
+
+    if is_external_zone(zone):
+        ext = get_handler_for_zone(zone)
+        return ext.fiddle_with_records(domain, content, what, **how)
+    else:
+        return pdns_fiddle(domain, content, what, **how)
+
+def pdns_fiddle(domain, content, what: RecOps, **how):
     r = requests.get('{}api/v1/servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key})
     zone_data = json.loads(r.text)
 
@@ -347,6 +359,7 @@ def api_post(domain):
         return "huh"
 
     content = json.dumps(request.get_data())  # yes, get_data uses (in the request object) an internal cache by default
+
     if add_or_replace_record(domain, content, replace=False):
         return "ok"
     else:
@@ -374,9 +387,50 @@ def api_delete(domain):
 
     return "l8r"
 
+
+class ExtCloudflare:
+    domains = {}
+
+    def __init__(self, domains):
+        for domain in domains:
+            name = domain['name']
+            zone_id = domain['zone_id']
+            token = domain['token']
+
+            r = requests.get(f'https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records', headers={'Authorization': f'Bearer {token}'})
+            if r.status_code != 200:
+                print(f"Error validating Cloudflare token for domain {domain} (zone id: {zone_id})")
+                sys.exit(1)
+            else:
+                print(f"Cloudflare: validated token for {domain}")
+                conf.external_zones[domain] = self
+
+        self.domains = domains
+
+    def fiddle_with_records(self, domain, content, what: RecOps, **how)
+        print(f"fiddling! domain: {domain}, content: {content}, what: {what}, ... how: {how}")
+
+
+def is_external_zone(zone_name):
+    for ext_zone in conf.external_zones.keys():
+        if zone_name.endswith(ext_zone):
+            return conf.external_zones[ext_zone]
+    return False
+
+def validate_external_config(config):
+    if not config.external:
+        return
+    ext = config.external
+    for e in ext:
+        if e['type'] == "cloudflare":
+            ExtCloudflare(e['domains'])
+
+
+
 def __bootstrap():
     global conf
     conf = load_config()
+    validate_external_config(conf)
 
 
 if __name__ == "__main__":
