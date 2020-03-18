@@ -348,7 +348,10 @@ def api_post(domain):
     if not is_domain_valid(domain):
         return "not valid domain"
 
-    zone = find_zone_for_domain(domain)
+    zone = is_external_zone(domain)
+    if not zone:
+        zone = find_zone_for_domain(domain)
+
     if not zone:
         return NotFound()
 
