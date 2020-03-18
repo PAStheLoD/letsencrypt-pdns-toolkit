@@ -231,17 +231,11 @@ def delete_record(domain, content, type="TXT"):
 def fiddle_with_records(domain, content, what: RecOps, **how):
     assert isinstance(what, RecOps)
 
-    zone = find_zone_for_domain(domain)
-    if not zone:
-        app.logger.error("trying got fiddle with domain for which no zone is found: {domain}")
-        return False
-
     if not domain.endswith('.'):
         domain = '{}.'.format(domain)
 
-
-    if is_external_zone(zone):
-        ext = get_handler_for_zone(zone)
+    ext = is_external_zone(domain)
+    if ext:
         return ext['instance'].fiddle_with_records(ext['data'], domain, content, what, **how)
     else:
         return pdns_fiddle(domain, content, what, **how)
@@ -337,6 +331,9 @@ def api_get(domain):
     if not is_domain_valid(domain):
         return "not valid domain"
 
+    if is_external_zone(domain):
+        return "ok"
+
     zone = find_zone_for_domain(domain)
     if not zone:
         return NotFound()
@@ -375,6 +372,11 @@ def api_delete(domain):
     if not is_domain_valid(domain):
         return "not valid domain"
 
+    ext = is_external_zone(domain)
+    if ext:
+        return ext['instance'].delete_record(ext['data'], domain)
+
+
     zone = find_zone_for_domain(domain)
     if not zone:
         return NotFound()
@@ -404,6 +406,9 @@ class ExtCloudflare:
                 sys.exit(1)
             else:
                 print(f"Cloudflare: validated token for {name}")
+                if not name.endswith('.'):
+                    name = f'{name}.'
+
                 conf.external_zones[name] = {
                     'instance': self,
                     'data': {
@@ -412,6 +417,15 @@ class ExtCloudflare:
                 }
 
         self.domains = domains
+    def delete_domain(self, data, domain):
+        zone_id = data['zone_id']
+        token = data['token']
+ 
+        r = requests.get(f'https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records?name={domain}', headers={'Authorization': f'Bearer {token}'})
+        # TODO: handle multiple records
+        record_id = json.loads(r.text)['result'][0]
+            
+        r = requests.delete(f'https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record_id}', headers={'Authorization': f'Bearer {token}'})
 
     def fiddle_with_records(self, data, domain, content, what: RecOps, **how):
         zone_id = data['zone_id']
@@ -438,6 +452,7 @@ class ExtCloudflare:
 
 
 def is_external_zone(zone_name):
+    print(f"is external zone? {zone_name}")
     for ext_zone in conf.external_zones.keys():
         if zone_name.endswith(ext_zone):
             return conf.external_zones[ext_zone]
