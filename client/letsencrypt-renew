@@ -1,6 +1,6 @@
 #!/bin/bash
 
-WORKDIR="${WORKDIR:-/opt/letsencrypt}"
+WORKDIR="${WORKDIR:-$(dirname $(readlink -f $0))}"
 cd $WORKDIR &>/dev/null || { echo "Missing program directory" ; exit 1 ; }
 
 [[ ! -t 0 ]] && {
@@ -14,7 +14,7 @@ cd $WORKDIR &>/dev/null || { echo "Missing program directory" ; exit 1 ; }
 }
 
 if [[ ! -x ./dehydrated ]] ; then
-    curl -sL https://raw.githubusercontent.com/lukas2511/dehydrated/5783a2dd45c92f5cacec54c3fa1d6d8d258d03bf/dehydrated -o dehydrated
+    curl -sL https://raw.githubusercontent.com/lukas2511/dehydrated/05eda91a2fbaed1e13c733230238fc68475c535e/dehydrated -o dehydrated
     chmod +x dehydrated
     if [[ ! -x ./dehydrated ]] ; then
         echo "FATAL: Failed to download and chmod dehydrated :("
@@ -90,7 +90,7 @@ domains=$(grep -Po '^[^#]*domain=.*$' le.config | grep -Po '\bdomain="\K[^"]+(?=
 for i in $domains ; do
     if [[ -r certs/$i/cert.pem ]] ; then
         # if less than 10 days remain, renew
-        if ! openssl x509 -in "certs/$i/cert.pem" -checkend 864000 -noout ; then
+        if ! openssl x509 -in "certs/$i/cert.pem" -checkend 864000 -noout > /dev/null ; then
            renew "$i" && install_new "$i"
         fi
     else
