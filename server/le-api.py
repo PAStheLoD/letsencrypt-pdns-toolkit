@@ -216,6 +216,9 @@ def find_zone_for_domain(domain):
 def trim_last_dot(domain):
     return domain.rstrip('.')
 
+def ensure_last_dot(domain):
+    return '{}.'.format(trim_last_dot(domain))
+
 
 from enum import Enum
 
@@ -224,6 +227,7 @@ class RecOps(Enum):
     delete = 2
 
 def add_or_replace_record(zone_or_ext, domain, content, type="TXT", ttl=3600, replace=True):
+    app.logger.debug('add_or_replace_record: zone: {} domain: {}  content: {} replace: {}'.format(zone_or_ext, domain, content, replace))
     return fiddle_with_records(zone_or_ext, domain, content, what=RecOps.add_or_replace, type=type, ttl=ttl, replace=replace)
 
 
@@ -251,40 +255,52 @@ def pdns_fiddle(zone, domain, content, what: RecOps, **how):
 
     zone_data = json.loads(r.text)
 
-    app.logger.debug('fiddling with: {}'.format(pformat(zone_data)))
+    zone_name = zone_data.get('name')
+    rrsets = zone_data.get('rrsets', [])
+
+    app.logger.debug('fiddling with: zone name: {} ({} RRsets) domain: {}, trying to: {} {} - {}'.format(zone_name, len(rrsets), domain, what, content, how))
 
     records = []
-    for rr in zone_data.get('rrsets', []):
-        if rr.get('name') == domain and rr.get('type') == how.get('type'):
-            for rec in rr.get('records', []):
-                if rec.get('content') == content and rr.get('disabled', False) == False:
-                    if what == RecOps.delete or how.get('replace', False):
-                        continue
 
-                # docs inconsistency
-                # we need to leave name in, but the docs does not show that
-                # https://doc.powerdns.com/md/httpapi/api_spec/#url-apiv1serversserver95idzoneszone95id
-                # https://doc.powerdns.com/md/httpapi/README/#examples-authoritative-server
-                # del rr['name']
-                app.logger.debug('appppppppppppending! {}'.format(rec))
+    fqdn = ensure_last_dot(domain)
 
-                records.append(rec)
+    if what == RecOps.delete and content == "":
+        app.logger.info('deleting every matching RRset for name: {}'.format(fqdn))
+    else:
+        for rr in rrsets:
+            if rr.get('name') == fqdn and rr.get('type') == how.get('type'):
+                orig_records = rr.get('records', [])
+                app.logger.debug('rr.get name == domain found ({}), type = {}, existing records: {}'.format(domain, how.get('type'), len(orig_records)))
 
-    if what == RecOps.add_or_replace:
-        records += [{
-                    "content": content,
-                    "disabled": False,
-                    "ttl": how.get('ttl'),  # API docs bug?
-                    "type": how.get('type'), # API docs bug?
-                    "name": domain # API docs bug?
-                }]
+                for rec in orig_records:
+                    if rec.get('content') == content and rr.get('disabled', False) == False:
+                        app.logger.debug('record {} already present and enabled'.format(content))
 
-    if not domain.endswith('.'):
-        domain = '{}.'.format(domain)
+                        if what == RecOps.delete or how.get('replace', False):
+                            continue
+
+                    # docs inconsistency
+                    # we need to leave name in, but the docs does not show that
+                    # https://doc.powerdns.com/md/httpapi/api_spec/#url-apiv1serversserver95idzoneszone95id
+                    # https://doc.powerdns.com/md/httpapi/README/#examples-authoritative-server
+                    # del rr['name']
+                    app.logger.debug('appppppppppppending! {}'.format(rec))
+
+                    records.append(rec)
+
+        if what == RecOps.add_or_replace:
+            records += [{
+                        "content": content,
+                        "disabled": False,
+                        "ttl": how.get('ttl'),  # API docs bug?
+                        "type": how.get('type'), # API docs bug?
+                        "name": fqdn # API docs bug?
+                    }]
+
     req = {
         "rrsets": [
             {
-                "name": domain,
+                "name": fqdn,
                 "type": "TXT",
                 "ttl": 86400,
                 "changetype": "REPLACE",
@@ -402,7 +418,15 @@ def api_delete(domain):
     if not zone:
         return NotFound()
 
-    content = json.dumps(request.get_data())  # yes, get_data uses (in the request object) an internal cache by default
+    data = request.get_data()  # yes, get_data uses (in the request object) an internal cache by default
+
+    if data == b'':
+        content = ""
+    else:
+        content = json.dumps(data)
+
+    app.logger.debug('DELETE: content = {}'.format(content))
+
     if delete_record(zone, domain, content, type="TXT"):
         return "deleted"
     else:
