@@ -62,7 +62,7 @@ function test_server() {
         if [[ $(echo "$server_host" | grep -P '^([0-9]+\.)+[0-9]+$') = "$server_host" ]] ; then
             ca="--resolve le-crypt:$port:$server_host --cacert $api_server_cert"
         else
-            ca="--resolve le-crypt:$port:$(dig +short "$server_host") --cacert $api_server_cert"
+            ca="--resolve le-crypt:$port:$(dig +short "$server_host" | tail -n 1) --cacert $api_server_cert"
         fi
         api_server_url="https://le-crypt:$port/api/"
 
