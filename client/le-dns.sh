@@ -29,18 +29,28 @@ api_server_cert="$(grep -Po '^(?!(\s*#+)+)\s*api_server_cert="?\K[^"]+(?="?$)' l
 
 which dig &>/dev/null || { echo "ERROR: dig program seems to be missing" >&2 ; exit 1 ; }
 
+__FORCE=""
+
+function process_env_vars() {
+    if [[ "$MANAGE_FORCE_NO_TLS" = "unsafe" ]] ; then
+        echo "unsafe on"
+        __FORCE="-k"
+    fi
+}
 
 function test_server() {
     local url="${1}"
     local cert_hack="${2}"
 
     # shellcheck disable=SC2086
-    curl_test_output="$(curl -sv "${url}" $cert_hack -I 2>&1)"
+    curl_test_output="$(curl $__FORCE -sv "${url}" $cert_hack -I 2>&1)"
 
-    if [[ $(echo "$curl_test_output" | grep -c 'SSL certificate verify ok') = 0 ]] ; then
-        echo "ERROR: API server TLS verification failed :(" >&2
-        echo | openssl s_client -connect "$server_host:$port" |& grep 'Verify return code:'
-        exit 1
+    if [[ "$__FORCE" = "" ]] ; then
+        if [[ $(echo "$curl_test_output" | grep -c 'SSL certificate verify ok') = 0 ]] ; then
+            echo "ERROR: API server TLS verification failed :(" >&2
+            echo | openssl s_client -connect "$server_host:$port" |& grep 'Verify return code:'
+            exit 1
+        fi
     fi
 
     if [[ $(echo "$curl_test_output" | grep -Poc  '^< HTTP/1\.1' || true) = 0 ]] ; then
@@ -77,11 +87,15 @@ function parse_args() {
 
 function clean_domain() {
     parse_conf
-    o=$(curl -s -X DELETE "${api_server_url}_acme-challenge.${domain}" $ca -H "API-Key: $key" 2>&1) || {
+    o=$(curl $__FORCE -s -X DELETE "${api_server_url}_acme-challenge.${domain}" $ca -H "API-Key: $key" 2>&1) || {
         echo "ERROR: error during cleaning: $o" >&2
     }
 
 }
+
+
+process_env_vars
+
 
 [[ "$api_server_cert" != "" ]] && {
     [[ -r "$api_server_cert" ]] && {
@@ -129,7 +143,7 @@ done="no"
 
 [[ "$1" = "deploy_challenge" ]] && {
   parse_args "$@"
-  curl_output=$(curl -s "${api_server_url}_acme-challenge.${domain}" $ca -d "$token" -H "API-Key: $key")
+  curl_output=$(curl -s $__FORCE "${api_server_url}_acme-challenge.${domain}" $ca -d "$token" -H "API-Key: $key")
   echo "$curl_output" | grep -q "^ok$" || {
       echo "$curl_output" | grep -qi "unauthorized" && {
           echo "ERROR: wrong key for domain" >&2
