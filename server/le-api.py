@@ -213,6 +213,12 @@ def find_zone_for_domain(domain):
         return False
     return zone
 
+def trim_last_dot(domain):
+    return domain.rstrip('.')
+
+def ensure_last_dot(domain):
+    return '{}.'.format(trim_last_dot(domain))
+
 
 from enum import Enum
 
@@ -220,64 +226,81 @@ class RecOps(Enum):
     add_or_replace = 1
     delete = 2
 
-def add_or_replace_record(domain, content, type="TXT", ttl=3600, replace=True):
-    return fiddle_with_records(domain, content, what=RecOps.add_or_replace, type=type, ttl=ttl, replace=replace)
+def add_or_replace_record(zone_or_ext, domain, content, type="TXT", ttl=3600, replace=True):
+    app.logger.debug('add_or_replace_record: zone: {} domain: {}  content: {} replace: {}'.format(zone_or_ext, domain, content, replace))
+    return fiddle_with_records(zone_or_ext, domain, content, what=RecOps.add_or_replace, type=type, ttl=ttl, replace=replace)
 
 
-def delete_record(domain, content, type="TXT"):
-    return fiddle_with_records(domain, content, what=RecOps.delete, type=type)
+def delete_record(zone_or_ext, domain, content, type="TXT"):
+    return fiddle_with_records(zone_or_ext, domain, content, what=RecOps.delete, type=type)
 
 
-def fiddle_with_records(domain, content, what: RecOps, **how):
+def fiddle_with_records(zone_or_ext, domain, content, what: RecOps, **how):
     assert isinstance(what, RecOps)
 
-    if not domain.endswith('.'):
-        domain = '{}.'.format(domain)
+    if isinstance(zone_or_ext, dict):
+        return zone_or_ext['instance'].fiddle_with_records(zone_or_ext['data'], domain, content, what, **how)
 
-    ext = is_external_zone(domain)
-    if ext:
-        return ext['instance'].fiddle_with_records(ext['data'], domain, content, what, **how)
-    else:
-        return pdns_fiddle(domain, content, what, **how)
+    return pdns_fiddle(zone_or_ext, domain, content, what, **how)
 
-def pdns_fiddle(domain, content, what: RecOps, **how):
-    r = requests.get('{}api/v1/servers/{}/zones/{}'.format(conf.pdns_api_url, conf.pdns_server_id, zone), headers={'X-API-Key': conf.pdns_api_key})
+def pdns_fiddle(zone, domain, content, what: RecOps, **how):
+#    if not domain.endswith('.'):
+#        domain = '{}.'.format(domain)
+
+    r = requests.get(f'{conf.pdns_api_url}api/v1/servers/{conf.pdns_server_id}/zones/{zone}', headers={'X-API-Key': conf.pdns_api_key})
+    if r.status_code != 200:
+        print("ERROR")
+        print(r.text)
+        return
+
     zone_data = json.loads(r.text)
 
-    app.logger.debug('fiddling with: {}'.format(pformat(zone_data)))
+    zone_name = zone_data.get('name')
+    rrsets = zone_data.get('rrsets', [])
+
+    app.logger.debug('fiddling with: zone name: {} ({} RRsets) domain: {}, trying to: {} {} - {}'.format(zone_name, len(rrsets), domain, what, content, how))
 
     records = []
-    for rr in zone_data.get('rrsets', []):
-        if rr.get('name') == domain and rr.get('type') == how.get('type'):
-            for rec in rr.get('records', []):
-                if rec.get('content') == content and rr.get('disabled', False) == False:
-                    if what == RecOps.delete or how.get('replace', False):
-                        continue
 
-                # docs inconsistency
-                # we need to leave name in, but the docs does not show that
-                # https://doc.powerdns.com/md/httpapi/api_spec/#url-apiv1serversserver95idzoneszone95id
-                # https://doc.powerdns.com/md/httpapi/README/#examples-authoritative-server
-                # del rr['name']
-                app.logger.debug('appppppppppppending! {}'.format(rec))
+    fqdn = ensure_last_dot(domain)
 
-                records.append(rec)
+    if what == RecOps.delete and content == "":
+        app.logger.info('deleting every matching RRset for name: {}'.format(fqdn))
+    else:
+        for rr in rrsets:
+            if rr.get('name') == fqdn and rr.get('type') == how.get('type'):
+                orig_records = rr.get('records', [])
+                app.logger.debug('rr.get name == domain found ({}), type = {}, existing records: {}'.format(domain, how.get('type'), len(orig_records)))
 
-    if what == RecOps.add_or_replace:
-        records += [{
-                    "content": content,
-                    "disabled": False,
-                    "ttl": how.get('ttl'),  # API docs bug?
-                    "type": how.get('type'), # API docs bug?
-                    "name": domain # API docs bug?
-                }]
+                for rec in orig_records:
+                    if rec.get('content') == content and rr.get('disabled', False) == False:
+                        app.logger.debug('record {} already present and enabled'.format(content))
 
-    if not domain.endswith('.'):
-        domain = '{}.'.format(domain)
+                        if what == RecOps.delete or how.get('replace', False):
+                            continue
+
+                    # docs inconsistency
+                    # we need to leave name in, but the docs does not show that
+                    # https://doc.powerdns.com/md/httpapi/api_spec/#url-apiv1serversserver95idzoneszone95id
+                    # https://doc.powerdns.com/md/httpapi/README/#examples-authoritative-server
+                    # del rr['name']
+                    app.logger.debug('appppppppppppending! {}'.format(rec))
+
+                    records.append(rec)
+
+        if what == RecOps.add_or_replace:
+            records += [{
+                        "content": content,
+                        "disabled": False,
+                        "ttl": how.get('ttl'),  # API docs bug?
+                        "type": how.get('type'), # API docs bug?
+                        "name": fqdn # API docs bug?
+                    }]
+
     req = {
         "rrsets": [
             {
-                "name": domain,
+                "name": fqdn,
                 "type": "TXT",
                 "ttl": 86400,
                 "changetype": "REPLACE",
@@ -321,11 +344,12 @@ def hello():
 
 @app.route("/api/<domain>", methods=["GET"])
 def api_get(domain):
+    domain = trim_last_dot(domain)
 
     app.logger.debug("request __auth: {}, domain: {}".format(request.__auth, domain))
 
     if not request.__auth.domain_matches(domain):
-        print("Unknown domain: {} for key (prefix): {}...".format(domain, request.headers.get('API-Key')[0:10]))
+        app.logger.info("Unknown domain: {} for key (prefix): {}...".format(domain, request.headers.get('API-Key')[0:10]))
         return Unauthorized()
 
     if not is_domain_valid(domain):
@@ -340,28 +364,39 @@ def api_get(domain):
 
     return "ok"
 
+
+def parse_request_body(req):
+    # don't worry about too large data, let's hope MAX_CONTENT_LENGTH is not naive and doesn't believe just any random Content-Length header
+    if len(req.get_data()) < 2:
+        return "huh"
+
+    return json.dumps(req.get_data())  # yes, get_data uses (in the request object) an internal cache by default
+
+
 @app.route("/api/<domain>", methods=["POST"])
 def api_post(domain):
+    domain = trim_last_dot(domain)
+
     if not request.__auth.domain_matches(domain):
         return Unauthorized()
 
     if not is_domain_valid(domain):
         return "not valid domain"
 
-    zone = is_external_zone(domain)
-    if not zone:
-        zone = find_zone_for_domain(domain)
+    ext = is_external_zone(domain)
+    if ext:
+        if ext['instance'].fiddle_with_records(ext['data'], domain, parse_request_body(request), what=RecOps.add_or_replace, type="TXT", ttl=3600, replace=False):
+            return "ok"
+        else:
+            return "err :C"
+
+    zone = find_zone_for_domain(domain)
 
     if not zone:
         return NotFound()
 
-    # don't worry about too large data, let's hope MAX_CONTENT_LENGTH is not naive and doesn't believe just any random Content-Length header
-    if len(request.get_data()) < 2:
-        return "huh"
 
-    content = json.dumps(request.get_data())  # yes, get_data uses (in the request object) an internal cache by default
-
-    if add_or_replace_record(domain, content, replace=False):
+    if add_or_replace_record(zone, domain, parse_request_body(request), replace=False):
         return "ok"
     else:
         return "err :C"
@@ -369,6 +404,8 @@ def api_post(domain):
 
 @app.route("/api/<domain>", methods=["DELETE"])
 def api_delete(domain):
+    domain = trim_last_dot(domain)
+
     if not request.__auth.domain_matches(domain):
         return Unauthorized()
 
@@ -384,9 +421,16 @@ def api_delete(domain):
     if not zone:
         return NotFound()
 
+    data = request.get_data()  # yes, get_data uses (in the request object) an internal cache by default
 
-    content = json.dumps(request.get_data())  # yes, get_data uses (in the request object) an internal cache by default
-    if delete_record(domain, content, type="TXT"):
+    if data == b'':
+        content = ""
+    else:
+        content = json.dumps(data)
+
+    app.logger.debug('DELETE: content = {}'.format(content))
+
+    if delete_record(zone, domain, content, type="TXT"):
         return "deleted"
     else:
         return "omg error :C"
@@ -409,8 +453,6 @@ class ExtCloudflare:
                 sys.exit(1)
             else:
                 print(f"Cloudflare: validated token for {name}")
-                if not name.endswith('.'):
-                    name = f'{name}.'
 
                 conf.external_zones[name] = {
                     'instance': self,
@@ -420,6 +462,11 @@ class ExtCloudflare:
                 }
 
         self.domains = domains
+
+    def does_record_exists(self, domain):
+        pass
+        
+
     def delete_domain(self, data, domain):
         zone_id = data['zone_id']
         token = data['token']
@@ -435,9 +482,14 @@ class ExtCloudflare:
         token = data['token']
         print(f"fiddling! domain: {domain}, zone: {zone_id}, content: {content}, what: {what}, ... how: {how}")
 
+        # fiddling! domain: _acme-challenge.dns-doh.end.systems., zone: ba21a77aca47ab46af42aaf69432323e, content: "omg", what: RecOps.add_or_replace, ... how: {'type': 'TXT', 'ttl': 3600, 'replace': False}
 
+        if what is RecOps.add_or_replace:
+            r = requests.get(f'https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records?name={domain}', headers={'Authorization': f'Bearer {token}'})
+            if r.status_code == 200:
+                record_id = json.loads(r.text)['result_info']['total_count']
+                r = requests.patch(f'https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record_id}', headers={'Authorization': f'Bearer {token}'})
 
-        
         # https://api.cloudflare.com/#dns-records-for-a-zone-update-dns-record
         return
         # uh oh deadcode!
