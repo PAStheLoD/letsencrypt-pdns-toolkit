@@ -385,7 +385,10 @@ def api_post(domain):
 
     ext = is_external_zone(domain)
     if ext:
-        return ext['instance'].fiddle_with_records(ext['data'], domain, parse_request_body(request), what=RecOps.add_or_replace, type="TXT", ttl=3600, replace=False)
+        if ext['instance'].fiddle_with_records(ext['data'], domain, parse_request_body(request), what=RecOps.add_or_replace, type="TXT", ttl=3600, replace=False):
+            return "ok"
+        else:
+            return "err :C"
 
     zone = find_zone_for_domain(domain)
 
