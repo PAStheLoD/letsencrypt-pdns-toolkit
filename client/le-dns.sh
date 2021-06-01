@@ -32,7 +32,7 @@ which dig &>/dev/null || { echo "ERROR: dig program seems to be missing" >&2 ; e
 __FORCE=""
 
 function process_env_vars() {
-    if [[ "$MANAGE_FORCE_NO_TLS" = "unsafe" ]] ; then
+    if [[ "${MANAGE_FORCE_NO_TLS:-}" = "unsafe" ]] ; then
         echo "unsafe on"
         __FORCE="-k"
     fi
@@ -40,13 +40,14 @@ function process_env_vars() {
 
 function test_server() {
     local url="${1}"
-    local cert_hack="${2}"
+    local cert_hack="${2:-}"
 
     # shellcheck disable=SC2086
     curl_test_output="$(curl $__FORCE -sv "${url}" $cert_hack -I 2>&1)"
+    # echo curl $__FORCE -sv $url $cert_hack -I
 
     if [[ "$__FORCE" = "" ]] ; then
-        if [[ $(echo "$curl_test_output" | grep -c 'SSL certificate verify ok') = 0 ]] ; then
+        if [[ $(echo "$curl_test_output" | grep -cP 'Verify return code: 0|SSL certificate verify ok') = 0 ]] ; then
             echo "ERROR: API server TLS verification failed :(" >&2
             echo | openssl s_client -connect "$server_host:$port" |& grep 'Verify return code:'
             exit 1
@@ -106,6 +107,9 @@ process_env_vars
         fi
 
         server_host=$(echo "$api_server" | grep -Po 'https://\K[a-z0-9.-]+' | head -n1)
+
+        # TODO: curl is very secure, it follows the CA/Browser forum policies and verifies subject alternative name
+        #       so we have to check if the cert even has it
 
         if [[ $(echo "$server_host" | grep -P '^([0-9]+\.)+[0-9]+$') = "$server_host" ]] ; then
             ca="--resolve le-crypt:$port:$server_host --cacert $api_server_cert"
