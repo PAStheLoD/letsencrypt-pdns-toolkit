@@ -11,11 +11,15 @@ set -o pipefail
 umask 077
 
 
-
 if [[ ! -r le.config ]] ; then
     echo "ERROR: Missing le.config" >&2
     exit 1
 fi
+
+function log() {
+  echo ">> | $*" >&2
+}
+
 
 api_server="$(grep -Po '^(?!(\s*#+)+)\s*api_server="?\Khttps://[a-z0-9.-]+(:[0-9]+)?(?="?$)' le.config || true)"
 
@@ -38,18 +42,21 @@ function process_env_vars() {
     fi
 }
 
+__api_server_host=""
+__api_server_port=""
+
 function test_server() {
     local url="${1}"
     local cert_hack="${2:-}"
 
     # shellcheck disable=SC2086
-    curl_test_output="$(curl $__FORCE -sv "${url}" $cert_hack -I 2>&1)"
+    curl_test_output="$(curl $__FORCE -sv "${url}" $cert_hack -I 2>&1 || : )"
     # echo curl $__FORCE -sv $url $cert_hack -I
 
     if [[ "$__FORCE" = "" ]] ; then
         if [[ $(echo "$curl_test_output" | grep -cP 'Verify return code: 0|SSL certificate verify ok') = 0 ]] ; then
-            echo "ERROR: API server TLS verification failed :(" >&2
-            echo | openssl s_client -connect "$server_host:$port" |& grep 'Verify return code:'
+            log "ERROR: API server TLS verification failed :("
+            echo | openssl s_client -connect "$__api_server_host:$__api_server_port" |& grep 'Verify return code:'
             exit 1
         fi
     fi
@@ -94,19 +101,33 @@ function clean_domain() {
 
 }
 
+#
+#
+#
+#
+# STARTS HERE ###################################################### \/ \/ \/
+
+log "DEBUG: args: $*"
 
 process_env_vars
 
+log "DEBUG: env vars processed"
+
+server_host=$(echo "$api_server" | grep -Po 'https://\K[a-z0-9.-]+' | head -n1)
+__api_server_host=$server_host
+if [[ $(echo "$api_server" | grep -Pc ':[0-9]+$') = 1 ]] ; then
+    port=$(echo "$api_server" | grep -Po ':\K[0-9]+$')
+else
+    port=443
+fi
+
+__api_server_port=$port
 
 [[ "$api_server_cert" != "" ]] && {
+    log "TRACE: using local public key for API server"
     [[ -r "$api_server_cert" ]] && {
-        if [[ $(echo "$api_server" | grep -Pc ':[0-9]+$') = 1 ]] ; then
-            port=$(echo "$api_server" | grep -Po ':\K[0-9]+$')
-        else
-            port=443
-        fi
 
-        server_host=$(echo "$api_server" | grep -Po 'https://\K[a-z0-9.-]+' | head -n1)
+        log "TRACE: server_host=${server_host} ($__api_server_host)"
 
         # TODO: curl is very secure, it follows the CA/Browser forum policies and verifies subject alternative name
         #       so we have to check if the cert even has it
@@ -119,12 +140,14 @@ process_env_vars
         api_server_url="https://le-crypt:$port/api/"
 
         test_server "$api_server_url" "$ca"
+        log "TRACE: testing DNS API server $api_server_url"
 
     } || {
         echo "ERROR: api_server_cert is set but not readable" >&2
         exit 1
     }
 } || {
+    log "TRACE: no local public key for API server, hello public PKI system"
     # try the server, maybe it has a valid cert
     api_server_url="${api_server}/api/"
 
@@ -133,7 +156,8 @@ process_env_vars
     ca=""
 }
 
-echo "DEBUG: args: $*" >&2
+log "DEBUG: config check ok"
+
 [[ "$1" = "startup_hook" ]] || [[ "${1}" = "exit_hook" ]] || [[ "${1}" = "unchanged_cert" ]] || [[ "${1}" = "deploy_cert" ]] && {
     # do nothing for now
     echo "DEBUG: noop $1" >&2
