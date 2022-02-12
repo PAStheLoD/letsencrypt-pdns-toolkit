@@ -3,9 +3,10 @@
 WORKDIR="${WORKDIR:-$(dirname $(readlink -f $0))}"
 cd $WORKDIR &>/dev/null || { echo "Missing program directory" ; exit 1 ; }
 
-[[ ! -t 0 ]] && {
+[[ ! -t 0 ]] && {  # check that fd 0 is a terminal (so if stdin is connected to a "pyt" then this is false)
    exec >> >(tee -a letsencrypt-cron.log)
    exec 2>&1
+   echo " -------- $(date "+%Y-%m-%d %H:%M") ---------- "
 }
 
 [[ ! -r le.config ]] && {
