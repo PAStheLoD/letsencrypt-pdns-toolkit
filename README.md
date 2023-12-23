@@ -1,3 +1,39 @@
+
+# archived
+
+Migrated to certbot-rfc2136 (as pdns supports it)
+
+RFC2136 https://doc.powerdns.com/authoritative/dnsupdate.html
+
+https://certbot-dns-rfc2136.readthedocs.io/en/stable/
+
+
+
+.
+
+.
+
+.
+
+
+.
+
+.
+
+.
+
+
+.
+
+.
+
+
+.
+
+
+.
+
+
 # Let's Encrypt + PowerDNS
 
 # How to deploy?
